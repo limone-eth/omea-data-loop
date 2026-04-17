@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Omea — Data Loop Canvas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0d1a;
+    --panel: #161a30;
+    --panel-hover: #1c2044;
+    --line: rgba(42, 47, 85, 0.6);
+    --ink: #e8eaf5;
+    --ink-mid: #c4c8e0;
+    --ink-dim: #8b91b8;
+    --accent: #7c9cff;
+    --green: #3ecf8e;
+    --amber: #f5b454;
+    --red: #ef6b6b;
+    --violet: #b18bff;
+    --teal: #4ed3d1;
+    --pink: #f48fb1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    background: rgba(10, 13, 26, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    z-index: 100;
+  }
+  .toolbar h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .toolbar .sep {
+    width: 1px;
+    height: 20px;
+    background: var(--line);
+  }
+  .toolbar .hint {
+    font-size: 11px;
+    color: var(--ink-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .toolbar .spacer { flex: 1; }
+  .toolbar button {
+    background: rgba(124, 156, 255, 0.1);
+    border: 1px solid rgba(124, 156, 255, 0.2);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .toolbar button:hover {
+    background: rgba(124, 156, 255, 0.2);
+    border-color: rgba(124, 156, 255, 0.4);
+  }
+  .toolbar .zoom-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    min-width: 48px;
+    text-align: center;
+  }
+
+  /* ── Canvas ── */
+  .canvas-wrap {
+    position: fixed;
+    top: 48px; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    cursor: grab;
+  }
+  .canvas-wrap.grabbing { cursor: grabbing; }
+  .canvas-wrap.dragging-node { cursor: grabbing; }
+
+  .canvas {
+    position: absolute;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  /* Dot grid on canvas */
+  .grid-bg {
+    position: absolute;
+    top: -5000px; left: -5000px;
+    width: 15000px; height: 15000px;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(124, 156, 255, 0.06) 1px, transparent 0);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ── SVG arrows layer ── */
+  .arrows-layer {
+    position: absolute;
+    top: -5000px; left: -5000px;
+    width: 15000px; height: 15000px;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  /* ── Row labels ── */
+  .row-label {
+    position: absolute;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--ink-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: 0.7;
+    cursor: pointer;
+    z-index: 3;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: opacity 0.2s ease, background 0.2s ease;
+  }
+  .row-label:hover {
+    opacity: 1;
+    background: rgba(124, 156, 255, 0.08);
+  }
+
+  /* ── Row backgrounds ── */
+  .row-bg {
+    position: absolute;
+    background: rgba(22, 26, 48, 0.35);
+    border: 1px solid rgba(42, 47, 85, 0.25);
+    border-radius: 16px;
+    cursor: pointer;
+    z-index: 0;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .row-bg:hover {
+    border-color: rgba(124, 156, 255, 0.3);
+    background: rgba(22, 26, 48, 0.5);
+  }
+
+  /* ── Row info panel ── */
+  .row-info-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  .row-info-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .row-info-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    max-width: 640px;
+    width: calc(100% - 48px);
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    background: linear-gradient(180deg, #161a30 0%, #111428 100%);
+    border: 1px solid rgba(124, 156, 255, 0.25);
+    border-radius: 16px;
+    padding: 32px 36px 28px;
+    z-index: 201;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  }
+  .row-info-panel.open {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+  }
+  .row-info-panel .panel-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .row-info-panel h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+    padding: 0;
+    color: var(--ink);
+  }
+  .row-info-panel h2::before { display: none; }
+  .row-info-panel .panel-sub {
+    font-size: 14px;
+    color: var(--ink-dim);
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+  .row-info-panel h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-mid);
+    margin: 18px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .row-info-panel ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--ink-dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .row-info-panel li {
+    margin-bottom: 4px;
+  }
+  .row-info-panel li strong {
+    color: var(--ink-mid);
+  }
+  .row-info-panel .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 13px;
+    color: var(--ink-dim);
+  }
+  .row-info-panel .flow-arrow {
+    color: var(--accent);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .row-info-panel .flow-node {
+    background: rgba(124, 156, 255, 0.08);
+    border: 1px solid rgba(124, 156, 255, 0.15);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mid);
+    white-space: nowrap;
+  }
+  .row-info-panel .close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(124, 156, 255, 0.06);
+    color: var(--ink-dim);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+    line-height: 1;
+  }
+  .row-info-panel .close-btn:hover {
+    background: rgba(124, 156, 255, 0.15);
+    color: var(--ink);
+  }
+
+  /* ── Nodes ── */
+  .node {
+    position: absolute;
+    background: #1a1e38;
+    border-radius: 12px;
+    border: 1.3px solid var(--line);
+    padding: 14px 16px;
+    cursor: grab;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    z-index: 2;
+  }
+  .node:hover {
+    z-index: 10;
+    border-color: rgba(124, 156, 255, 0.4);
+    box-shadow:
+      0 0 0 1px rgba(124, 156, 255, 0.1),
+      0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .node.dragging {
+    cursor: grabbing;
+    z-index: 50;
+    box-shadow:
+      0 0 0 2px rgba(124, 156, 255, 0.3),
+      0 16px 48px rgba(0, 0, 0, 0.5);
+    transition: none;
+  }
+  .node.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(124, 156, 255, 0.2);
+  }
+
+  .node .node-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+    white-space: nowrap;
+  }
+  .node .node-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .node .node-line {
+    font-size: 11px;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .node .node-sep {
+    height: 1px;
+    background: var(--line);
+    margin: 6px 0;
+  }
+  .node .node-footer {
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .node .node-subfooter {
+    font-size: 10px;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+
+  /* ── Minimap ── */
+  .minimap {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 200px;
+    height: 140px;
+    background: rgba(10, 13, 26, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    z-index: 90;
+    cursor: pointer;
+  }
+  .minimap-canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .minimap-viewport {
+    position: absolute;
+    border: 1.5px solid var(--accent);
+    border-radius: 2px;
+    background: rgba(124, 156, 255, 0.06);
+    pointer-events: none;
+  }
+
+  /* ── Client (user-facing) nodes ── */
+  .node.client {
+    background: linear-gradient(135deg, #1a1e38 0%, #1e2348 100%);
+    border-width: 2px;
+    box-shadow:
+      0 0 20px rgba(124, 156, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .node.client::after {
+    content: 'USER-FACING';
+    position: absolute;
+    top: -10px;
+    right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #0a0d1a;
+    background: linear-gradient(135deg, var(--accent), var(--violet));
+    padding: 2px 8px;
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+  .node.client:hover {
+    box-shadow:
+      0 0 0 2px rgba(124, 156, 255, 0.2),
+      0 0 32px rgba(124, 156, 255, 0.12),
+      0 12px 40px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ── Focus / highlight mode ── */
+  .canvas.has-focus .node {
+    opacity: 0.15;
+    transition: opacity 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  .canvas.has-focus .node.highlighted {
+    opacity: 1;
+    z-index: 10;
+    box-shadow:
+      0 0 0 2px rgba(124, 156, 255, 0.25),
+      0 0 24px rgba(124, 156, 255, 0.1),
+      0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+  .canvas.has-focus .node.focus-origin {
+    opacity: 1;
+    z-index: 11;
+    box-shadow:
+      0 0 0 2.5px var(--accent),
+      0 0 32px rgba(124, 156, 255, 0.18),
+      0 12px 40px rgba(0, 0, 0, 0.4);
+  }
+  .canvas.has-focus .arrows-layer path {
+    opacity: 0.06;
+    transition: opacity 0.25s ease;
+  }
+  .canvas.has-focus .arrows-layer path.arrow-highlighted {
+    opacity: 1;
+    stroke-width: 2.5;
+  }
+  .canvas.has-focus .arrows-layer text,
+  .canvas.has-focus .arrows-layer rect[data-from] {
+    opacity: 0.06;
+    transition: opacity 0.25s ease;
+  }
+  .canvas.has-focus .arrows-layer text.label-highlighted,
+  .canvas.has-focus .arrows-layer rect.label-highlighted {
+    opacity: 1;
+  }
+
+  /* ── Selection box ── */
+  .selection-box {
+    position: absolute;
+    border: 1px solid var(--accent);
+    background: rgba(124, 156, 255, 0.06);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 60;
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .node { transition: none; }
+    .toolbar button { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Omea — Data Loop Canvas</h1>
+  <div class="sep"></div>
+  <span class="hint">Drag nodes &middot; Scroll or double-click to zoom &middot; Space+drag to pan &middot; Click to highlight</span>
+  <div class="spacer"></div>
+  <button onclick="resetLayout()">Reset layout</button>
+  <button onclick="fitToScreen()">Fit to screen</button>
+  <div class="sep"></div>
+  <button onclick="zoomBy(-0.15)" title="Zoom out" style="min-width:32px;padding:5px 8px;font-size:16px;line-height:1;">&minus;</button>
+  <span class="zoom-display" id="zoomDisplay">100%</span>
+  <button onclick="zoomBy(0.15)" title="Zoom in" style="min-width:32px;padding:5px 8px;font-size:16px;line-height:1;">+</button>
+</div>
+
+<div class="canvas-wrap" id="canvasWrap">
+  <div class="canvas" id="canvas">
+    <div class="grid-bg"></div>
+    <svg class="arrows-layer" id="arrowsLayer" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ah-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#7c9cff"/>
+        </marker>
+        <marker id="ah-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#3ecf8e"/>
+        </marker>
+        <marker id="ah-violet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#b18bff"/>
+        </marker>
+        <marker id="ah-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f5b454"/>
+        </marker>
+        <marker id="ah-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#ef6b6b"/>
+        </marker>
+        <marker id="ah-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#4ed3d1"/>
+        </marker>
+        <marker id="ah-pink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f48fb1"/>
+        </marker>
+        <marker id="ah-dim" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#8b91b8"/>
+        </marker>
+      </defs>
+    </svg>
+    <div class="selection-box" id="selectionBox"></div>
+  </div>
+</div>
+
+<div class="row-info-overlay" id="rowInfoOverlay"></div>
+<div class="row-info-panel" id="rowInfoPanel">
+  <button class="close-btn" id="rowInfoClose">&times;</button>
+  <div id="rowInfoContent"></div>
+</div>
+
+<div class="minimap" id="minimap">
+  <canvas class="minimap-canvas" id="minimapCanvas" width="400" height="280"></canvas>
+  <div class="minimap-viewport" id="minimapViewport"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════
+
+const NODES = [
+  // Row 1: Ingestion
+  { id: 'randox', row: 1, title: 'Randox API', color: '#ef6b6b', lines: ['blood panels', 'PDF + JSON', 'LOINC-coded'], footer: 'cycle-gated', subfooter: 'every 8\u201312 weeks', x: 60, y: 100, w: 160, h: 170 },
+  { id: 'terra', row: 1, title: 'Terra / Spike', color: '#4ed3d1', lines: ['HRV \xb7 sleep', 'steps \xb7 resting HR', 'Oura \xb7 Whoop \xb7 AH'], footer: 'continuous webhook', subfooter: 'minutes-resolution', x: 240, y: 100, w: 160, h: 170 },
+  { id: 'checkins', row: 1, title: 'App check-ins', color: '#f5b454', lines: ['mood \xb7 energy', 'adherence tap', 'structured confounds'], footer: 'daily \xb7 the loop core', subfooter: 'UX = data-quality tool', x: 420, y: 100, w: 160, h: 170 },
+  { id: 'voice', row: 1, title: 'Voice notes', color: '#f48fb1', lines: ['transcript', 'auto-tagged', 'ElevenLabs for output'], footer: 'ad hoc', subfooter: 'confound capture', x: 600, y: 100, w: 160, h: 170 },
+  { id: 'research', row: 1, title: 'Research MCP', color: '#b18bff', lines: ['PubMed', 'Europe PMC', 'Semantic Scholar'], footer: 'batch \xb7 CMO review', subfooter: 'new evidence \u2192 Library', x: 780, y: 100, w: 160, h: 170 },
+  { id: 'profile', row: 1, title: 'User profile', color: '#3ecf8e', lines: ['goals \xb7 budget', 'medical history', 'meds \xb7 restrictions'], footer: 'versioned consent', subfooter: 'per-purpose, revocable', x: 960, y: 100, w: 160, h: 170 },
+  { id: 'cmo', row: 1, title: 'Medical Dashboard', color: '#7c9cff', client: true, lines: ['OptimalRange editor', 'Intervention Library', 'Contraindication rules', 'cohort analytics'], footer: 'propose \u2192 approve', subfooter: 'CMO + clinical team', x: 1140, y: 100, w: 175, h: 185 },
+
+  // Row 2: Processing
+  { id: 'gateway', row: 2, title: 'API Gateway / ALB', color: '#7c9cff', lines: ['TLS termination', 'WAF \xb7 rate limit', 'Clerk auth / JWT'], footer: 'GDPR Art 32', x: 60, y: 360, w: 180, h: 150 },
+  { id: 'workers', row: 2, title: 'Ingestion workers', color: '#7c9cff', lines: ['Lambda / Fargate', 'ephemeral \xb7 stateless', 'versioned parsers'], footer: 'write Tier 1 verbatim', x: 260, y: 360, w: 180, h: 150 },
+  { id: 'fhir', row: 2, title: 'FHIR normaliser', color: '#7c9cff', lines: ['LOINC codes', 'units \xb7 reference ranges', 'UTC + local offset'], footer: 'Tier 1 \u2192 Tier 2', x: 460, y: 360, w: 180, h: 150 },
+  { id: 'ai_extract', row: 2, title: 'AI extraction', color: '#b18bff', lines: ['Claude (Bedrock)', 'lab PDF \u2192 rows', 'paper \u2192 intervention'], footer: 'Tier 2 \u2192 Tier 3', x: 660, y: 360, w: 180, h: 150 },
+  { id: 'source_reg', row: 2, title: 'Source registry', color: '#4ed3d1', lines: ['plugin per source', 'parser_version', 'consent_purpose'], footer: 'add source = config', x: 860, y: 360, w: 180, h: 150 },
+  { id: 'observ', row: 2, title: 'CloudTrail \xb7 CW', color: '#8b91b8', lines: ['every PHI access logged', 'anomaly alerts', 'retention-locked bucket'], footer: '72-hour breach clock', x: 1060, y: 360, w: 180, h: 150 },
+
+  // Row 3: Storage
+  { id: 'tier1', row: 3, title: 'Raw payloads', color: '#3ecf8e', tierLabel: 'TIER 1 \xb7 RAW', storage: 'S3 + KMS (CMK)', lines: ['verbatim blobs', 'content-hashed', 'immutable, append-only', 'customer-managed keys', 'crypto-shred on Art 17'], footer: 'source of truth', x: 60, y: 620, w: 220, h: 200 },
+  { id: 'tier2', row: 3, title: 'Normalised data', color: '#7c9cff', tierLabel: 'TIER 2 \xb7 NORMALISED', storage: 'Aurora Postgres (eu-west-2)', lines: ['FHIR-aligned rows', 'biomarkers \xb7 wearables', 'adherence \xb7 confounds', 'RLS per-user isolation', 'parser_version stamp'], footer: 're-derivable from Tier 1', x: 300, y: 620, w: 220, h: 200 },
+  { id: 'tier3', row: 3, title: 'AI-enriched data', color: '#b18bff', tierLabel: 'TIER 3 \xb7 AI-ELABORATED', storage: 'Aurora Postgres (eu-west-2)', lines: ['flagged markers', 'deviation % scored', 'tagged confounds', 'pgvector embeddings', 'pointer back to Tier 1'], footer: 'auditable AI layer', x: 540, y: 620, w: 220, h: 200 },
+  { id: 'tier4', row: 3, title: 'Cycle dataset', color: '#f5b454', tierLabel: 'TIER 4 \xb7 CYCLE DATASET', storage: 'Aurora Postgres (eu-west-2)', lines: ['frozen input snapshot', '+ protocol issued', '+ intervention adherence', '+ structured confounds', '+ retest delta'], footer: 'attribution substrate', x: 780, y: 620, w: 220, h: 200 },
+  { id: 'versioned', row: 3, title: 'Medical content', color: '#7c9cff', dashed: true, tierLabel: 'VERSIONED CONTENT', storage: 'Aurora Postgres (eu-west-2)', lines: ['OptimalRange \xb7 versions', 'Intervention Library \xb7 v.', 'Contraindications \xb7 v.', 'Scoring Weights \xb7 v.', 'PR-style propose/approve'], footer: 'append-only \xb7 replayable', x: 1020, y: 620, w: 220, h: 200 },
+
+  // Row 4: Rules Engine
+  { id: 'step1', row: 4, title: 'Optimal range', color: '#7c9cff', stepLabel: 'STEP 1', lines: ['lookup by', 'marker \xd7 age \xd7 sex', 'flag marker'], footer: '~30 markers (Jul)', subfooter: '\u2192 80+ (V2)', x: 60, y: 920, w: 155, h: 155 },
+  { id: 'step2', row: 4, title: 'Candidate pull', color: '#7c9cff', stepLabel: 'STEP 2', lines: ['from Intervention', 'Library', 'per flagged marker'], footer: '~80 entries (Jul)', subfooter: '\u2192 200 (V2)', x: 235, y: 920, w: 155, h: 155 },
+  { id: 'step3', row: 4, title: 'Score', color: '#7c9cff', stepLabel: 'STEP 3', lines: ['evidence \xd7 severity', '\xd7 goal \xd7 onset', 'weighted'], footer: 'static (Jul)', subfooter: '\u2192 learned (V2)', x: 410, y: 920, w: 155, h: 155 },
+  { id: 'step4', row: 4, title: 'Hard constraints', color: '#ef6b6b', stepLabel: 'STEP 4', lines: ['contraindications', 'med interactions', 'supplement conflicts'], footer: '3\u201310 rules (Jul)', subfooter: '\u2192 100\u2013200 (V2)', x: 585, y: 920, w: 155, h: 155 },
+  { id: 'step5', row: 4, title: 'Budget filter', color: '#7c9cff', stepLabel: 'STEP 5', lines: ['greedy fill by score', 'time budget', '\xa3 budget'], footer: 'per-user config', x: 760, y: 920, w: 155, h: 155 },
+  { id: 'step6', row: 4, title: 'Schedule', color: '#7c9cff', stepLabel: 'STEP 6', lines: ['morning \xb7 with meals', 'evening \xb7 before bed', 'timing conflict'], footer: 'resolver', x: 935, y: 920, w: 155, h: 155 },
+  { id: 'step7', row: 4, title: 'Freeze snapshot', color: '#f5b454', stepLabel: 'STEP 7', lines: ['inputs + scores', '+ content versions', '\u2192 Tier 4'], footer: 'immutable', subfooter: 're-playable', x: 1110, y: 920, w: 155, h: 155 },
+
+  // Row 5: User / Output
+  { id: 'llm', row: 5, title: 'LLM personalisation', color: '#b18bff', lines: ['framing only', 'card copy', 'explanations', 'daily check-in prompts'], footer: 'never adds/removes care', subfooter: 'safety architecture', x: 60, y: 1190, w: 195, h: 200 },
+  { id: 'protocol', row: 5, title: 'Protocol', color: '#3ecf8e', lines: ['foundation layer', 'active layer', 'monitoring layer', '+ schedule'], footer: 'engine output', subfooter: 'deterministic rules', x: 275, y: 1190, w: 195, h: 200 },
+  { id: 'mobile_app', row: 5, title: 'Mobile App', color: '#7c9cff', client: true, lines: ['protocol delivery', 'daily check-ins', 'voice capture', 'retest scheduling', 'push notifications'], footer: 'Expo / React Native', subfooter: 'end-user interface', x: 490, y: 1190, w: 195, h: 215 },
+  { id: 'daily', row: 5, title: 'Daily home', color: '#f5b454', lines: ['adherence tap', 'mood \xb7 sleep \xb7 energy', 'confound categories', 'intervention-level'], footer: 'this is the loop', subfooter: 'UX = data quality', x: 705, y: 1190, w: 195, h: 200 },
+  { id: 'retest', row: 5, title: 'Retest \xb7 cycle close', color: '#ef6b6b', lines: ['new Randox panel', 'biomarker delta', 'vs frozen baseline', 'closes Tier 4 record'], footer: 'cadence enforced', subfooter: 'retest nag > everything', x: 920, y: 1190, w: 195, h: 200 },
+  { id: 'attribution', row: 5, title: 'Attribution (ITS)', color: '#4ed3d1', lines: ['per-intervention credit', 'de-weight on confounds', 'cohort deltas', 'feeds Scoring Weights'], footer: 'needs \u22656mo real cycles', subfooter: 'adaptive scoring unlocks', x: 1135, y: 1190, w: 195, h: 200 },
+];
+
+const CONNECTIONS = [
+  // Row 1 → Row 2
+  { from: 'randox', to: 'gateway', color: '#ef6b6b', marker: 'ah-red' },
+  { from: 'terra', to: 'gateway', color: '#4ed3d1', marker: 'ah-teal' },
+  { from: 'checkins', to: 'workers', color: '#f5b454', marker: 'ah-amber' },
+  { from: 'voice', to: 'ai_extract', color: '#f48fb1', marker: 'ah-pink' },
+  { from: 'research', to: 'ai_extract', color: '#b18bff', marker: 'ah-violet' },
+  { from: 'profile', to: 'fhir', color: '#3ecf8e', marker: 'ah-green', dashed: true },
+
+  // Row 2 → Row 3
+  { from: 'workers', to: 'tier1', color: '#3ecf8e', marker: 'ah-green' },
+  { from: 'fhir', to: 'tier2', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'ai_extract', to: 'tier3', color: '#b18bff', marker: 'ah-violet' },
+  { from: 'source_reg', to: 'tier3', color: '#4ed3d1', marker: 'ah-teal', dashed: true },
+
+  // Storage internal
+  { from: 'tier1', to: 'tier2', color: '#8b91b8', marker: 'ah-dim', dashed: true },
+  { from: 'tier2', to: 'tier3', color: '#8b91b8', marker: 'ah-dim', dashed: true },
+  { from: 'tier3', to: 'tier4', color: '#8b91b8', marker: 'ah-dim', dashed: true },
+
+  // Row 3 → Row 4
+  { from: 'tier1', to: 'step1', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'tier2', to: 'step2', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'tier3', to: 'step3', color: '#b18bff', marker: 'ah-violet' },
+  { from: 'versioned', to: 'step4', color: '#7c9cff', marker: 'ah-accent', dashed: true },
+  { from: 'versioned', to: 'step1', color: '#7c9cff', marker: 'ah-accent', dashed: true, opacity: 0.5 },
+
+  // Steps internal
+  { from: 'step1', to: 'step2', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'step2', to: 'step3', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'step3', to: 'step4', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'step4', to: 'step5', color: '#ef6b6b', marker: 'ah-red' },
+  { from: 'step5', to: 'step6', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'step6', to: 'step7', color: '#7c9cff', marker: 'ah-accent' },
+
+  // Row 4 → Row 5
+  { from: 'step7', to: 'protocol', color: '#3ecf8e', marker: 'ah-green' },
+  { from: 'step7', to: 'llm', color: '#b18bff', marker: 'ah-violet', dashed: true },
+
+  // Medical Dashboard reads from versioned content + observability
+  { from: 'versioned', to: 'cmo', color: '#7c9cff', marker: 'ah-accent', dashed: true, feedback: true, label: 'dashboard reads' },
+
+  // User-facing clients → API Gateway
+  { from: 'mobile_app', to: 'gateway', color: '#7c9cff', marker: 'ah-accent', dashed: true, feedback: true, label: 'all API calls' },
+  { from: 'cmo', to: 'gateway', color: '#7c9cff', marker: 'ah-accent', dashed: true, feedback: true, label: 'dashboard API' },
+
+  // Row 5 internal
+  { from: 'llm', to: 'protocol', color: '#b18bff', marker: 'ah-violet' },
+  { from: 'protocol', to: 'mobile_app', color: '#3ecf8e', marker: 'ah-green' },
+  { from: 'llm', to: 'mobile_app', color: '#b18bff', marker: 'ah-violet', dashed: true },
+  { from: 'mobile_app', to: 'daily', color: '#7c9cff', marker: 'ah-accent' },
+  { from: 'daily', to: 'retest', color: '#f5b454', marker: 'ah-amber' },
+  { from: 'retest', to: 'attribution', color: '#ef6b6b', marker: 'ah-red' },
+
+  // Feedback loops
+  { from: 'mobile_app', to: 'checkins', color: '#f5b454', marker: 'ah-amber', dashed: true, feedback: true, label: 'daily loop' },
+  { from: 'mobile_app', to: 'randox', color: '#ef6b6b', marker: 'ah-red', dashed: true, feedback: true, label: 'cycle-close loop' },
+  { from: 'attribution', to: 'versioned', color: '#4ed3d1', marker: 'ah-teal', dashed: true, feedback: true, label: 'attribution \u2192 weights' },
+  { from: 'cmo', to: 'versioned', color: '#7c9cff', marker: 'ah-accent', dashed: true, feedback: true, label: 'CMO edits' },
+];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+
+let pan = { x: 0, y: 0 };
+let zoom = 1;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let panOrigin = { x: 0, y: 0 };
+let spaceHeld = false;
+
+let dragNode = null;
+let dragOffset = { x: 0, y: 0 };
+let dragStartPos = null;
+let didDrag = false;
+let focusedNodeId = null;
+
+let selectedNodes = new Set();
+
+const nodeMap = {};
+const nodeElements = {};
+
+// Save original positions
+const originalPositions = {};
+NODES.forEach(n => { originalPositions[n.id] = { x: n.x, y: n.y }; });
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+
+const canvas = document.getElementById('canvas');
+const canvasWrap = document.getElementById('canvasWrap');
+const arrowsLayer = document.getElementById('arrowsLayer');
+const zoomDisplay = document.getElementById('zoomDisplay');
+
+function createNodeEl(node) {
+  const el = document.createElement('div');
+  el.className = 'node' + (node.client ? ' client' : '');
+  el.dataset.id = node.id;
+  el.style.left = node.x + 'px';
+  el.style.top = node.y + 'px';
+  el.style.width = node.w + 'px';
+  el.style.borderColor = node.color;
+  if (node.dashed) el.style.borderStyle = 'dashed';
+
+  let html = '';
+  if (node.tierLabel) {
+    html += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:0.1em;font-weight:700;color:' + node.color + ';margin-bottom:4px;">' + node.tierLabel + '</div>';
+  }
+  if (node.stepLabel) {
+    html += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:600;color:' + node.color + ';margin-bottom:4px;">' + node.stepLabel + '</div>';
+  }
+  html += '<div class="node-title">' + node.title + '</div>';
+  if (node.storage) {
+    html += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#8b91b8;margin:-2px 0 4px;opacity:0.8;">' + node.storage + '</div>';
+  }
+  html += '<div class="node-lines">';
+  node.lines.forEach(l => { html += '<div class="node-line">' + l + '</div>'; });
+  html += '</div>';
+  html += '<div class="node-sep"></div>';
+  html += '<div class="node-footer" style="color:' + node.color + '">' + node.footer + '</div>';
+  if (node.subfooter) {
+    html += '<div class="node-subfooter">' + node.subfooter + '</div>';
+  }
+
+  el.innerHTML = html;
+  canvas.appendChild(el);
+  nodeElements[node.id] = el;
+  nodeMap[node.id] = node;
+}
+
+NODES.forEach(createNodeEl);
+
+// Sync node data heights from actual rendered DOM
+function syncNodeSizes() {
+  NODES.forEach(n => {
+    const el = nodeElements[n.id];
+    if (el) {
+      n.h = el.offsetHeight;
+      n.w = el.offsetWidth;
+    }
+  });
+}
+// Row definitions with descriptions
+const ROWS = [
+  {
+    id: 'ingestion',
+    label: '1 \xb7 INGESTION',
+    labelY: 70, bandY: 60, bandH: 230,
+    title: 'Ingestion',
+    subtitle: 'All external data enters the system here. Every source writes through a versioned, consent-aware pipeline.',
+    flow: ['Randox API', 'Terra / Spike', 'App check-ins', 'Voice notes', 'Research MCP', 'User profile', 'Medical Dashboard'],
+    details: [
+      '<strong>7 ingestion sources</strong>, each with its own cadence: cycle-gated blood panels (8\u201312 weeks), continuous wearable webhooks (minutes), daily app check-ins, ad-hoc voice notes, batch research imports, user profile edits, and CMO dashboard updates.',
+      'Every payload is stamped with <strong>source_id + parser_version + consent_purpose</strong> by the Source Registry before touching any storage tier.',
+      'The <strong>Medical Dashboard</strong> and <strong>Mobile App</strong> are user-facing clients \u2014 both route through the API Gateway. The dashboard lets the CMO propose changes to medical content; the app captures daily user data.',
+      'Nothing here is transformed yet \u2014 raw payloads flow downstream to Processing exactly as received.'
+    ]
+  },
+  {
+    id: 'processing',
+    label: '2 \xb7 PROCESSING',
+    labelY: 330, bandY: 320, bandH: 210,
+    title: 'Processing',
+    subtitle: 'Stateless workers parse, normalise, and enrich raw data before writing to the appropriate storage tier.',
+    flow: ['API Gateway', '\u2192', 'Ingestion workers', '\u2192', 'FHIR normaliser', '\u2192', 'AI extraction'],
+    details: [
+      '<strong>API Gateway / ALB</strong> handles TLS termination, WAF, rate limiting, and Clerk JWT auth. Every request is authenticated before reaching any worker. GDPR Art 32 compliant.',
+      '<strong>Ingestion workers</strong> (Lambda / Fargate) are ephemeral and stateless. They write verbatim payloads to <strong>Tier 1</strong> \u2014 the raw, immutable source of truth.',
+      '<strong>FHIR normaliser</strong> transforms Tier 1 blobs into structured FHIR-aligned rows in <strong>Tier 2</strong> (Aurora Postgres): LOINC codes, standardised units, reference ranges, UTC + local offset.',
+      '<strong>AI extraction</strong> (Claude via Bedrock) enriches Tier 2 rows into <strong>Tier 3</strong>: flagging markers, scoring deviations, tagging confounds, generating pgvector embeddings.',
+      '<strong>Source Registry</strong> makes adding a new data source a config change, not a code change. <strong>CloudTrail + CloudWatch</strong> logs every PHI access with a 72-hour breach notification clock.'
+    ]
+  },
+  {
+    id: 'storage',
+    label: '3 \xb7 STORAGE',
+    labelY: 590, bandY: 580, bandH: 260,
+    title: 'Storage (4 Tiers + Versioned Content)',
+    subtitle: 'Data lives in progressive tiers of refinement. Each tier is re-derivable from the one before it. Medical content is versioned separately.',
+    flow: ['Tier 1 Raw', '\u2192', 'Tier 2 Normalised', '\u2192', 'Tier 3 AI-enriched', '\u2192', 'Tier 4 Cycle dataset'],
+    details: [
+      '<strong>Tier 1 \u2014 Raw (S3 + KMS)</strong>: Verbatim, content-hashed, immutable, append-only blobs encrypted with customer-managed keys. Crypto-shred on GDPR Art 17 deletion. This is the source of truth.',
+      '<strong>Tier 2 \u2014 Normalised (Aurora Postgres)</strong>: FHIR-aligned rows for biomarkers, wearables, adherence, and confounds. Row-Level Security isolates per-user. Every row has a parser_version stamp and a pointer back to its Tier 1 blob.',
+      '<strong>Tier 3 \u2014 AI-elaborated (Aurora Postgres)</strong>: Enriched rows with flagged markers, deviation scores, tagged confounds, and pgvector embeddings. Auditable AI layer \u2014 every enrichment traces back to Tier 1.',
+      '<strong>Tier 4 \u2014 Cycle dataset (Aurora Postgres)</strong>: The closed-cycle moat record. Freezes the input snapshot + protocol issued + intervention adherence + structured confounds + retest delta. This is what attribution runs on.',
+      '<strong>Versioned Content (Aurora Postgres)</strong>: OptimalRange tables, Intervention Library, Contraindication rules, and Scoring Weights \u2014 each independently versioned with PR-style propose/approve workflow. Append-only, fully replayable.'
+    ]
+  },
+  {
+    id: 'rules_engine',
+    label: '4 \xb7 RULES ENGINE',
+    labelY: 890, bandY: 880, bandH: 210,
+    title: 'Rules Engine',
+    subtitle: 'A pure, deterministic function of (input snapshot, content versions). No side effects. Every protocol is replayable.',
+    flow: ['Optimal range', '\u2192', 'Candidate pull', '\u2192', 'Score', '\u2192', 'Hard constraints', '\u2192', 'Budget filter', '\u2192', 'Schedule', '\u2192', 'Freeze snapshot'],
+    details: [
+      '<strong>Step 1 \u2014 Optimal range</strong>: Looks up each biomarker against the OptimalRange table by marker \xd7 age \xd7 sex. Flags markers outside optimal. ~30 markers at MVP, scaling to 80+.',
+      '<strong>Step 2 \u2014 Candidate pull</strong>: For each flagged marker, pulls candidate interventions from the Intervention Library. ~80 entries at MVP, scaling to 200+.',
+      '<strong>Step 3 \u2014 Score</strong>: Ranks candidates by evidence \xd7 severity \xd7 goal alignment \xd7 onset speed. Static weights at MVP; learned weights from attribution data in V2.',
+      '<strong>Step 4 \u2014 Hard constraints</strong>: Applies contraindication rules, medication interactions, and supplement conflict checks. These are absolute vetoes \u2014 no score overrides them. 3\u201310 rules at MVP, scaling to 100\u2013200.',
+      '<strong>Step 5 \u2014 Budget filter</strong>: Greedy fill by score within the user\u2019s time and \xa3 budget constraints.',
+      '<strong>Step 6 \u2014 Schedule</strong>: Assigns each surviving intervention to a time slot (morning, with meals, evening, before bed) and resolves timing conflicts.',
+      '<strong>Step 7 \u2014 Freeze snapshot</strong>: Writes the complete protocol \u2014 inputs + scores + content versions \u2014 as an immutable, re-playable Tier 4 record.'
+    ]
+  },
+  {
+    id: 'user_output',
+    label: '5 \xb7 USER / OUTPUT',
+    labelY: 1158, bandY: 1148, bandH: 280,
+    title: 'User / Output & Feedback Loop',
+    subtitle: 'The protocol reaches the user through the Mobile App. Daily interactions and retests feed back into ingestion, closing the loop.',
+    flow: ['LLM framing', '\u2192', 'Protocol', '\u2192', 'Mobile App', '\u2192', 'Daily home', '\u2192', 'Retest', '\u2192', 'Attribution'],
+    details: [
+      '<strong>LLM personalisation</strong>: Adds human-readable framing, card copy, explanations, and daily check-in prompts. The LLM never adds or removes clinical interventions \u2014 it is a language layer only. Safety architecture enforced.',
+      '<strong>Protocol</strong>: The deterministic output of the rules engine, structured into foundation / active / monitoring layers plus a schedule.',
+      '<strong>Mobile App</strong> (Expo / React Native): The end-user interface. Delivers the protocol, captures daily check-ins, records voice notes, schedules retests, and sends push notifications. All API calls route through the API Gateway.',
+      '<strong>Daily home</strong>: The core of the data loop. Users tap adherence, log mood / sleep / energy, and tag confound categories at the intervention level. UX is designed as a data quality tool.',
+      '<strong>Retest \xb7 cycle close</strong>: A new Randox blood panel triggers a biomarker delta vs the frozen baseline, closes the Tier 4 record, and starts a new protocol cycle. Cadence is enforced \u2014 the retest nag overrides everything.',
+      '<strong>Attribution (ITS)</strong>: Per-intervention credit assignment, de-weighted on confounds, using cohort deltas. Feeds updated scoring weights back into the Versioned Content tables. Needs \u22656 months of real cycles to unlock adaptive scoring.'
+    ]
+  }
+];
+
+// Render row backgrounds and labels
+const rowBgElements = {};
+const rowLabelElements = {};
+
+ROWS.forEach((row, i) => {
+  const bg = document.createElement('div');
+  bg.className = 'row-bg';
+  bg.dataset.row = row.id;
+  bg.style.left = '30px';
+  bg.style.top = row.bandY + 'px';
+  bg.style.width = '1310px';
+  bg.style.height = row.bandH + 'px';
+  canvas.appendChild(bg);
+  rowBgElements[row.id] = bg;
+
+  const lbl = document.createElement('div');
+  lbl.className = 'row-label';
+  lbl.dataset.row = row.id;
+  lbl.textContent = row.label;
+  lbl.style.left = '50px';
+  lbl.style.top = row.labelY + 'px';
+  canvas.appendChild(lbl);
+  rowLabelElements[row.id] = lbl;
+
+  // Click handler for both
+  function openRowInfo() { showRowInfo(row); }
+  bg.addEventListener('click', e => {
+    if (e.target.closest('.node')) return;
+    openRowInfo();
+  });
+  lbl.addEventListener('click', openRowInfo);
+});
+
+// Row info panel logic
+const rowInfoOverlay = document.getElementById('rowInfoOverlay');
+const rowInfoPanel = document.getElementById('rowInfoPanel');
+const rowInfoContent = document.getElementById('rowInfoContent');
+const rowInfoClose = document.getElementById('rowInfoClose');
+
+function showRowInfo(row) {
+  let html = '';
+  html += '<div class="panel-tag">Layer ' + row.label.charAt(0) + '</div>';
+  html += '<h2>' + row.title + '</h2>';
+  html += '<div class="panel-sub">' + row.subtitle + '</div>';
+
+  // Flow visualization
+  html += '<h3>Flow</h3>';
+  html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;">';
+  row.flow.forEach(step => {
+    if (step === '\u2192') {
+      html += '<span class="flow-arrow">\u2192</span>';
+    } else {
+      html += '<span class="flow-node">' + step + '</span>';
+    }
+  });
+  html += '</div>';
+
+  // Details
+  html += '<h3>How it works</h3>';
+  html += '<ul>';
+  row.details.forEach(d => {
+    html += '<li>' + d + '</li>';
+  });
+  html += '</ul>';
+
+  rowInfoContent.innerHTML = html;
+  rowInfoOverlay.classList.add('open');
+  rowInfoPanel.classList.add('open');
+}
+
+function closeRowInfo() {
+  rowInfoOverlay.classList.remove('open');
+  rowInfoPanel.classList.remove('open');
+}
+
+rowInfoClose.addEventListener('click', closeRowInfo);
+rowInfoOverlay.addEventListener('click', closeRowInfo);
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && rowInfoPanel.classList.contains('open')) {
+    closeRowInfo();
+    e.stopPropagation();
+  }
+});
+
+// Initial sync after DOM paint
+requestAnimationFrame(() => {
+  syncNodeSizes();
+  drawArrows();
+  fitToScreen();
+});
+
+// ═══════════════════════════════════════════
+// ARROWS
+// ═══════════════════════════════════════════
+
+// Find the point where a ray from the center of a rect toward a target
+// point intersects the rect's border. This guarantees the anchor is
+// exactly on the box edge regardless of angle.
+function rectBorderPoint(rect, targetX, targetY) {
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const hw = rect.w / 2;
+  const hh = rect.h / 2;
+
+  let dx = targetX - cx;
+  let dy = targetY - cy;
+
+  // Avoid division by zero for overlapping centers
+  if (dx === 0 && dy === 0) return { x: cx, y: cy + hh };
+
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  // Which edge does the ray hit first?
+  // Scale factor to reach each edge:
+  //   horizontal edges: hh / |dy|   vertical edges: hw / |dx|
+  let scale;
+  if (absDx * hh > absDy * hw) {
+    // Hits left or right edge first
+    scale = hw / absDx;
+  } else {
+    // Hits top or bottom edge first
+    scale = hh / absDy;
+  }
+
+  return { x: cx + dx * scale, y: cy + dy * scale };
+}
+
+function getAnchor(fromId, toId, conn) {
+  const f = nodeMap[fromId];
+  const t = nodeMap[toId];
+  const fRect = { x: f.x, y: f.y, w: f.w, h: f.h };
+  const tRect = { x: t.x, y: t.y, w: t.w, h: t.h };
+  const fc = { x: f.x + f.w / 2, y: f.y + f.h / 2 };
+  const tc = { x: t.x + t.w / 2, y: t.y + t.h / 2 };
+
+  // For feedback loops, use specific edge anchors so curves look clean
+  if (conn && conn.feedback) {
+    const dx = tc.x - fc.x;
+    const dy = tc.y - fc.y;
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // Vertical feedback (going up) — exit bottom of source, enter top of target
+      if (dy < 0) {
+        return { fx: fc.x, fy: f.y + f.h, tx: tc.x, ty: t.y };
+      }
+      // Going down — exit bottom, enter top
+      return { fx: fc.x, fy: f.y + f.h, tx: tc.x, ty: t.y };
+    }
+    // Horizontal-ish — exit right of higher, enter right of lower (or vice versa)
+    if (dy < 0) {
+      return { fx: fc.x, fy: f.y + f.h, tx: tc.x, ty: t.y };
+    }
+    return { fx: f.x + f.w, fy: fc.y, tx: t.x + t.w, ty: tc.y };
+  }
+
+  // Normal connections: ray-cast from each center toward the other
+  const fromPt = rectBorderPoint(fRect, tc.x, tc.y);
+  const toPt   = rectBorderPoint(tRect, fc.x, fc.y);
+
+  return { fx: fromPt.x, fy: fromPt.y, tx: toPt.x, ty: toPt.y };
+}
+
+function drawArrows() {
+  // Clear existing paths (keep defs)
+  const defs = arrowsLayer.querySelector('defs');
+  arrowsLayer.innerHTML = '';
+  arrowsLayer.appendChild(defs);
+
+  const svgOffset = 5000; // matches top/left offset
+
+  CONNECTIONS.forEach(conn => {
+    const { fx, fy, tx, ty } = getAnchor(conn.from, conn.to, conn);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+
+    const dx = tx - fx;
+    const dy = ty - fy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Determine dominant direction from the exit/entry points
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const isVertical = absDy >= absDx;
+
+    let d;
+    if (conn.feedback) {
+      // Feedback loops: wide sweeping curves
+      if (isVertical && dy < 0) {
+        // Going UP (e.g. daily→checkins, retest→randox)
+        const bulge = Math.max(80, absDx * 0.6);
+        const side = fx <= tx ? -bulge : bulge;
+        d = `M ${fx + svgOffset} ${fy + svgOffset} C ${fx + side + svgOffset} ${fy + absDy * 0.35 + svgOffset}, ${tx + side + svgOffset} ${ty - absDy * 0.35 + svgOffset}, ${tx + svgOffset} ${ty + svgOffset}`;
+      } else if (isVertical && dy > 0) {
+        // Going DOWN feedback
+        const bulge = Math.max(80, absDx * 0.6);
+        const side = fx <= tx ? bulge : -bulge;
+        d = `M ${fx + svgOffset} ${fy + svgOffset} C ${fx + side + svgOffset} ${fy + absDy * 0.35 + svgOffset}, ${tx + side + svgOffset} ${ty - absDy * 0.35 + svgOffset}, ${tx + svgOffset} ${ty + svgOffset}`;
+      } else {
+        // Horizontal-ish feedback
+        const bulge = Math.max(100, absDy * 0.8);
+        d = `M ${fx + svgOffset} ${fy + svgOffset} C ${fx + svgOffset} ${fy + bulge + svgOffset}, ${tx + svgOffset} ${ty + bulge + svgOffset}, ${tx + svgOffset} ${ty + svgOffset}`;
+      }
+    } else if (isVertical) {
+      // Vertical dominant: S-curve with control points that keep tangent vertical at endpoints
+      const tension = Math.min(absDy * 0.45, 120);
+      const cyF = fy + (dy > 0 ? tension : -tension);
+      const cyT = ty - (dy > 0 ? tension : -tension);
+      d = `M ${fx + svgOffset} ${fy + svgOffset} C ${fx + svgOffset} ${cyF + svgOffset}, ${tx + svgOffset} ${cyT + svgOffset}, ${tx + svgOffset} ${ty + svgOffset}`;
+    } else {
+      // Horizontal dominant: S-curve with control points that keep tangent horizontal at endpoints
+      const tension = Math.min(absDx * 0.45, 100);
+      const cxF = fx + (dx > 0 ? tension : -tension);
+      const cxT = tx - (dx > 0 ? tension : -tension);
+      d = `M ${fx + svgOffset} ${fy + svgOffset} C ${cxF + svgOffset} ${fy + svgOffset}, ${cxT + svgOffset} ${ty + svgOffset}, ${tx + svgOffset} ${ty + svgOffset}`;
+    }
+
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', conn.color);
+    path.setAttribute('stroke-width', conn.feedback ? '2.2' : '1.5');
+    path.setAttribute('marker-end', 'url(#' + conn.marker + ')');
+    if (conn.dashed) path.setAttribute('stroke-dasharray', conn.feedback ? '8 5' : '5 3');
+    if (conn.opacity) path.setAttribute('opacity', conn.opacity);
+    path.dataset.from = conn.from;
+    path.dataset.to = conn.to;
+
+    arrowsLayer.appendChild(path);
+
+    // Label for feedback loops — rendered as pill with background
+    if (conn.label) {
+      // Sample the actual bezier midpoint (t=0.5) from the path
+      const tempLen = path.getTotalLength();
+      const midPt = path.getPointAtLength(tempLen * 0.5);
+      // Offset the label away from the curve so it doesn't overlap
+      let offsetX = 0, offsetY = -14;
+      if (isVertical && conn.feedback) {
+        // For vertical feedback curves, offset to the side the curve bulges toward
+        offsetX = fx <= tx ? -10 : 10;
+        offsetY = 0;
+      }
+      const labelX = midPt.x + offsetX;
+      const labelY = midPt.y + offsetY;
+
+      // Measure text width to size the pill
+      const textLen = conn.label.length * 6.2 + 16;
+      const pillH = 18;
+
+      // Background pill
+      const pill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      pill.setAttribute('x', labelX - textLen / 2);
+      pill.setAttribute('y', labelY - pillH / 2 - 1);
+      pill.setAttribute('width', textLen);
+      pill.setAttribute('height', pillH);
+      pill.setAttribute('rx', 5);
+      pill.setAttribute('fill', '#0e1125');
+      pill.setAttribute('stroke', conn.color);
+      pill.setAttribute('stroke-width', '0.8');
+      pill.setAttribute('opacity', '0.92');
+      pill.dataset.from = conn.from;
+      pill.dataset.to = conn.to;
+      arrowsLayer.appendChild(pill);
+
+      // Text on top
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', labelX);
+      text.setAttribute('y', labelY + 3.5);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', conn.color);
+      text.setAttribute('font-family', "'JetBrains Mono', monospace");
+      text.setAttribute('font-size', '9');
+      text.setAttribute('font-weight', '600');
+      text.setAttribute('letter-spacing', '0.04em');
+      text.dataset.from = conn.from;
+      text.dataset.to = conn.to;
+      text.textContent = conn.label;
+      arrowsLayer.appendChild(text);
+    }
+  });
+
+  // Re-apply focus highlighting after redraw (SVG was cleared)
+  if (focusedNodeId) {
+    const { conns: connectedConns } = getConnectedNodes(focusedNodeId);
+    const paths = arrowsLayer.querySelectorAll('path[data-from]');
+    paths.forEach(p => {
+      if (connectedConns.some(c => c.from === p.dataset.from && c.to === p.dataset.to)) {
+        p.classList.add('arrow-highlighted');
+      }
+    });
+    arrowsLayer.querySelectorAll('text[data-from], rect[data-from]').forEach(el => {
+      if (connectedConns.some(c => c.from === el.dataset.from && c.to === el.dataset.to)) {
+        el.classList.add('label-highlighted');
+      }
+    });
+  }
+}
+
+drawArrows();
+
+// ═══════════════════════════════════════════
+// PAN & ZOOM
+// ═══════════════════════════════════════════
+
+function applyTransform() {
+  canvas.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+  zoomDisplay.textContent = Math.round(zoom * 100) + '%';
+  updateMinimap();
+}
+
+// Zoom toward the center of the viewport by a delta amount
+function zoomBy(delta) {
+  const rect = canvasWrap.getBoundingClientRect();
+  const cx = rect.width / 2;
+  const cy = rect.height / 2;
+  zoomToward(cx, cy, delta);
+}
+
+// Zoom toward a specific screen point
+function zoomToward(sx, sy, delta) {
+  const oldZoom = zoom;
+  zoom = Math.max(0.15, Math.min(3, zoom + delta));
+  pan.x = sx - (sx - pan.x) * (zoom / oldZoom);
+  pan.y = sy - (sy - pan.y) * (zoom / oldZoom);
+  applyTransform();
+}
+
+// Double-click to zoom in (shift+double-click to zoom out)
+canvasWrap.addEventListener('dblclick', e => {
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const delta = e.shiftKey ? -0.3 : 0.3;
+  zoomToward(mx, my, delta);
+});
+
+canvasWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const oldZoom = zoom;
+  const delta = -e.deltaY * 0.001;
+  zoom = Math.max(0.15, Math.min(3, zoom * (1 + delta)));
+
+  // Zoom toward mouse
+  pan.x = mx - (mx - pan.x) * (zoom / oldZoom);
+  pan.y = my - (my - pan.y) * (zoom / oldZoom);
+
+  applyTransform();
+}, { passive: false });
+
+canvasWrap.addEventListener('pointerdown', e => {
+  if (e.target.closest('.node')) return;
+  if (e.button === 1 || spaceHeld || e.button === 0) {
+    if (e.target.closest('.node')) return;
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    panOrigin = { ...pan };
+    canvasWrap.classList.add('grabbing');
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('pointermove', e => {
+  if (isPanning) {
+    pan.x = panOrigin.x + (e.clientX - panStart.x);
+    pan.y = panOrigin.y + (e.clientY - panStart.y);
+    applyTransform();
+  }
+  if (dragNode) {
+    // Check if we've moved enough to count as a drag (not a click)
+    if (dragStartPos) {
+      const movedX = Math.abs(e.clientX - dragStartPos.x);
+      const movedY = Math.abs(e.clientY - dragStartPos.y);
+      if (movedX > 4 || movedY > 4) didDrag = true;
+    }
+    const n = nodeMap[dragNode];
+    const newX = (e.clientX - canvasWrap.getBoundingClientRect().left - pan.x) / zoom - dragOffset.x;
+    const newY = (e.clientY - canvasWrap.getBoundingClientRect().top - pan.y) / zoom - dragOffset.y;
+
+    // Snap to grid (40px)
+    n.x = Math.round(newX / 20) * 20;
+    n.y = Math.round(newY / 20) * 20;
+
+    const el = nodeElements[dragNode];
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    syncNodeSizes();
+    drawArrows();
+    updateMinimap();
+  }
+});
+
+window.addEventListener('pointerup', e => {
+  if (isPanning) {
+    isPanning = false;
+    canvasWrap.classList.remove('grabbing');
+  }
+  if (dragNode) {
+    const clickedId = dragNode;
+    nodeElements[dragNode].classList.remove('dragging');
+    canvasWrap.classList.remove('dragging-node');
+    dragNode = null;
+
+    // If it was a click (no drag), toggle focus highlight
+    if (!didDrag) {
+      if (focusedNodeId === clickedId) {
+        clearFocus();
+      } else {
+        setFocus(clickedId);
+      }
+    }
+    dragStartPos = null;
+  }
+});
+
+// Space key for pan mode
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.target.matches('input,textarea')) {
+    spaceHeld = true;
+    canvasWrap.style.cursor = 'grab';
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    spaceHeld = false;
+    canvasWrap.style.cursor = '';
+  }
+});
+
+// ═══════════════════════════════════════════
+// NODE DRAG
+// ═══════════════════════════════════════════
+
+canvas.addEventListener('pointerdown', e => {
+  const nodeEl = e.target.closest('.node');
+  if (!nodeEl || spaceHeld) return;
+
+  e.stopPropagation();
+  const id = nodeEl.dataset.id;
+  const n = nodeMap[id];
+  const rect = canvasWrap.getBoundingClientRect();
+
+  dragNode = id;
+  dragStartPos = { x: e.clientX, y: e.clientY };
+  didDrag = false;
+  dragOffset = {
+    x: (e.clientX - rect.left - pan.x) / zoom - n.x,
+    y: (e.clientY - rect.top - pan.y) / zoom - n.y,
+  };
+
+  nodeEl.classList.add('dragging');
+  canvasWrap.classList.add('dragging-node');
+});
+
+// ═══════════════════════════════════════════
+// FOCUS / HIGHLIGHT
+// ═══════════════════════════════════════════
+
+function getConnectedNodes(nodeId) {
+  const connected = new Set();
+  const connectedConns = [];
+  CONNECTIONS.forEach(conn => {
+    if (conn.from === nodeId) {
+      connected.add(conn.to);
+      connectedConns.push(conn);
+    }
+    if (conn.to === nodeId) {
+      connected.add(conn.from);
+      connectedConns.push(conn);
+    }
+  });
+  return { nodes: connected, conns: connectedConns };
+}
+
+function setFocus(nodeId) {
+  focusedNodeId = nodeId;
+  const { nodes: connectedIds, conns: connectedConns } = getConnectedNodes(nodeId);
+
+  canvas.classList.add('has-focus');
+
+  // Highlight origin node
+  Object.keys(nodeElements).forEach(id => {
+    const el = nodeElements[id];
+    el.classList.remove('focus-origin', 'highlighted');
+    if (id === nodeId) {
+      el.classList.add('focus-origin');
+    } else if (connectedIds.has(id)) {
+      el.classList.add('highlighted');
+    }
+  });
+
+  // Highlight connected arrows
+  const paths = arrowsLayer.querySelectorAll('path[data-from]');
+  paths.forEach(p => {
+    const isConn = connectedConns.some(c => c.from === p.dataset.from && c.to === p.dataset.to);
+    if (isConn) {
+      p.classList.add('arrow-highlighted');
+    } else {
+      p.classList.remove('arrow-highlighted');
+    }
+  });
+
+  // Highlight connected labels + pill backgrounds
+  arrowsLayer.querySelectorAll('text[data-from], rect[data-from]').forEach(el => {
+    const isConn = connectedConns.some(c => c.from === el.dataset.from && c.to === el.dataset.to);
+    if (isConn) {
+      el.classList.add('label-highlighted');
+    } else {
+      el.classList.remove('label-highlighted');
+    }
+  });
+}
+
+function clearFocus() {
+  focusedNodeId = null;
+  canvas.classList.remove('has-focus');
+  Object.keys(nodeElements).forEach(id => {
+    nodeElements[id].classList.remove('focus-origin', 'highlighted');
+  });
+  arrowsLayer.querySelectorAll('.arrow-highlighted').forEach(p => p.classList.remove('arrow-highlighted'));
+  arrowsLayer.querySelectorAll('.label-highlighted').forEach(t => t.classList.remove('label-highlighted'));
+}
+
+// Click empty canvas to clear focus
+canvasWrap.addEventListener('pointerup', e => {
+  if (!e.target.closest('.node') && !didDrag && !isPanning) {
+    clearFocus();
+  }
+}, true);
+
+// Escape key clears focus
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && focusedNodeId) {
+    clearFocus();
+  }
+});
+
+// ═══════════════════════════════════════════
+// MINIMAP
+// ═══════════════════════════════════════════
+
+const minimapCanvas = document.getElementById('minimapCanvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+const minimapViewport = document.getElementById('minimapViewport');
+
+function getContentBounds() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  NODES.forEach(n => {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.w);
+    maxY = Math.max(maxY, n.y + n.h);
+  });
+  const pad = 60;
+  return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+}
+
+function updateMinimap() {
+  const bounds = getContentBounds();
+  const cw = minimapCanvas.width;
+  const ch = minimapCanvas.height;
+  const scale = Math.min(cw / bounds.w, ch / bounds.h);
+
+  minimapCtx.clearRect(0, 0, cw, ch);
+  minimapCtx.fillStyle = 'rgba(10, 13, 26, 0.95)';
+  minimapCtx.fillRect(0, 0, cw, ch);
+
+  // Draw nodes
+  NODES.forEach(n => {
+    const rx = (n.x - bounds.x) * scale;
+    const ry = (n.y - bounds.y) * scale;
+    const rw = n.w * scale;
+    const rh = n.h * scale;
+    minimapCtx.fillStyle = n.color + '40';
+    minimapCtx.strokeStyle = n.color + '80';
+    minimapCtx.lineWidth = 0.5;
+    minimapCtx.beginPath();
+    minimapCtx.roundRect(rx, ry, rw, rh, 2);
+    minimapCtx.fill();
+    minimapCtx.stroke();
+  });
+
+  // Viewport indicator
+  const wrapRect = canvasWrap.getBoundingClientRect();
+  const vpX = (-pan.x / zoom - bounds.x) * scale;
+  const vpY = (-pan.y / zoom - bounds.y) * scale;
+  const vpW = (wrapRect.width / zoom) * scale;
+  const vpH = (wrapRect.height / zoom) * scale;
+
+  minimapViewport.style.left = vpX + 'px';
+  minimapViewport.style.top = vpY + 'px';
+  minimapViewport.style.width = vpW + 'px';
+  minimapViewport.style.height = vpH + 'px';
+}
+
+// Click minimap to navigate
+document.getElementById('minimap').addEventListener('click', e => {
+  const rect = minimapCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const bounds = getContentBounds();
+  const cw = minimapCanvas.width;
+  const ch = minimapCanvas.height;
+  const scale = Math.min(cw / bounds.w, ch / bounds.h);
+  const wrapRect = canvasWrap.getBoundingClientRect();
+
+  const targetX = (mx / scale + bounds.x);
+  const targetY = (my / scale + bounds.y);
+
+  pan.x = -targetX * zoom + wrapRect.width / 2;
+  pan.y = -targetY * zoom + wrapRect.height / 2;
+  applyTransform();
+});
+
+// ═══════════════════════════════════════════
+// TOOLBAR ACTIONS
+// ═══════════════════════════════════════════
+
+function resetLayout() {
+  NODES.forEach(n => {
+    n.x = originalPositions[n.id].x;
+    n.y = originalPositions[n.id].y;
+    nodeElements[n.id].style.left = n.x + 'px';
+    nodeElements[n.id].style.top = n.y + 'px';
+  });
+  drawArrows();
+  fitToScreen();
+}
+
+function fitToScreen() {
+  const bounds = getContentBounds();
+  const wrapRect = canvasWrap.getBoundingClientRect();
+  const scaleX = wrapRect.width / bounds.w;
+  const scaleY = wrapRect.height / bounds.h;
+  zoom = Math.min(scaleX, scaleY) * 0.9;
+  zoom = Math.max(0.15, Math.min(3, zoom));
+
+  pan.x = (wrapRect.width - bounds.w * zoom) / 2 - bounds.x * zoom;
+  pan.y = (wrapRect.height - bounds.h * zoom) / 2 - bounds.y * zoom;
+  applyTransform();
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+
+fitToScreen();
+</script>
+</body>
+</html>
