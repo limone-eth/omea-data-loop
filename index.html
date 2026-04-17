@@ -691,6 +691,7 @@
   <div class="spacer"></div>
   <button onclick="resetLayout()">Reset layout</button>
   <button onclick="fitToScreen()">Fit to screen</button>
+  <button onclick="showMilestones()" style="background:rgba(62,207,142,0.1);border-color:rgba(62,207,142,0.2);color:#3ecf8e;">Milestones</button>
   <div class="sep"></div>
   <button onclick="zoomBy(-0.15)" title="Zoom out" style="min-width:32px;padding:5px 8px;font-size:16px;line-height:1;">&minus;</button>
   <span class="zoom-display" id="zoomDisplay">100%</span>
@@ -750,6 +751,13 @@
 <div class="row-info-panel" id="rowInfoPanel">
   <button class="close-btn" id="rowInfoClose">&times;</button>
   <div id="rowInfoContent"></div>
+</div>
+
+<!-- Milestones panel (reuses row-info-panel styling) -->
+<div class="row-info-overlay" id="msOverlay"></div>
+<div class="row-info-panel" id="msPanel" style="max-width:720px;">
+  <button class="close-btn" id="msClose">&times;</button>
+  <div id="msContent"></div>
 </div>
 
 <div class="minimap" id="minimap">
@@ -1284,6 +1292,189 @@ function clearLegendFilter() {
   legendPanel.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
   clearFocus();
 }
+
+// ═══════════════════════════════════════════
+// MILESTONES PANEL
+// ═══════════════════════════════════════════
+
+const msOverlay = document.getElementById('msOverlay');
+const msPanel = document.getElementById('msPanel');
+const msContent = document.getElementById('msContent');
+const msClose = document.getElementById('msClose');
+
+const MILESTONES_TABS = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    html: '<h3>Technical roadmap</h3>' +
+      '<p style="color:var(--ink-dim);font-size:13px;line-height:1.65;margin-bottom:16px;">Six months from infrastructure to a learning engine. Each phase builds on the last \u2014 no big-bang launches, every milestone is a working increment.</p>' +
+      '<div class="scale-timeline">' +
+        '<div class="scale-phase now"><div class="phase-label">April \xb7 Infrastructure</div>' +
+        '<p>AWS account provisioned, SEIS scheme submitted, provider contracts initiated. The technical foundation: confirming Aurora Postgres, S3 + KMS, Clerk auth, CloudTrail. AWS credits secured. This is the \u201ccan we build on this?\u201d phase.</p></div>' +
+        '<div class="scale-phase now"><div class="phase-label">May \xb7 Clinical data + pipeline</div>' +
+        '<p>CMO confirmed (1st). Clinical database confirmed (7th). Omea Healthscore defined: biomarker categories + mapping. Stratification logic drafted. Advisory board assembled (15th). Data pipeline dev begins \u2014 first ingestion workers, FHIR normaliser skeleton, Source Registry. Landing page + waitlist CRM (HubSpot). Partnerships and venue mapping for pre-activation events.</p></div>' +
+        '<div class="scale-phase mid"><div class="phase-label">June \xb7 Engine + app alpha</div>' +
+        '<p>Protocol Engine confirmed \u2014 the 7-step pipeline runs end-to-end for the first time. Training dataset: synthetic \xd7 organic. Randox and Terra integrations live. App on TestFlight. Admin CRM built. UX/UI V.1 delivered. SEIS scheme confirmed. First pre-activation event (ticketed, waitlist-building).</p></div>' +
+        '<div class="scale-phase mid"><div class="phase-label">July \xb7 Funding + compliance</div>' +
+        '<p>Founding committee cohort enters (1st). GDPR compliance achieved. Funding round opens (14th) \u2014 pitchdeck, use-of-funds, legal advice. UX/UI undergoes psychological review. Pre-activation events continue. Engine running with ~30 markers, ~80 interventions, 3\u201310 hard constraint rules.</p></div>' +
+        '<div class="scale-phase later"><div class="phase-label">August \xb7 Polish + close</div>' +
+        '<p>UX/UI V.2 delivered (5th). Funding round closes (10th). CQC process begins. Pre-activation event (waitlist, ticketed). Engine scaling to 60 markers, 120+ interventions, 20\u201340 rules. First real users generating Tier 4 cycle data.</p></div>' +
+        '<div class="scale-phase later"><div class="phase-label">September \xb7 Launch</div>' +
+        '<p><strong>Launch day: Monday 14th.</strong> Delta founding committee cohort goes live. PR, Friends & Family pre-launch cohort activated. Engine at full MVP capacity. Attribution begins collecting data. The loop is closed \u2014 real users, real blood panels, real adherence data, real retests.</p></div>' +
+      '</div>'
+  },
+  {
+    id: 'april',
+    label: 'Apr',
+    html: '<h3>April \u2014 Infrastructure</h3>' +
+      '<div class="panel-sub">Confirm infrastructure, providers, and compliance foundations.</div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(62,207,142,0.1);color:var(--green);border-color:rgba(62,207,142,0.15);">Infra</span> AWS + compliance</div>' +
+      '<ul><li><strong>AWS account provisioned</strong> \u2014 Aurora Postgres (eu-west-2), S3 buckets with KMS customer-managed keys, VPC with private subnets</li>' +
+      '<li><strong>SEIS scheme application submitted</strong> (25th) \u2014 tax-efficient investment vehicle for seed round</li>' +
+      '<li><strong>AWS credits secured</strong> via Marcel \u2014 runway for compute, storage, Bedrock API calls</li>' +
+      '<li><strong>Provider evaluation</strong>: Clerk (auth), CloudTrail (audit), Randox (bloods), Terra (wearables) contracts initiated</li></ul></div>' +
+      '<h3>What this unblocks</h3>' +
+      '<ul><li>Tier 1 storage (S3 + KMS) is ready to receive raw payloads</li><li>Aurora schema design can begin for Tiers 2\u20134</li><li>Clerk auth integration can start \u2014 JWT flow for API Gateway</li></ul>'
+  },
+  {
+    id: 'may',
+    label: 'May',
+    html: '<h3>May \u2014 Clinical data + data pipeline</h3>' +
+      '<div class="panel-sub">CMO onboard, clinical schema defined, first data flowing through the pipeline.</div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(62,207,142,0.1);color:var(--green);border-color:rgba(62,207,142,0.15);">Clinical</span> Schema + CMO</div>' +
+      '<ul><li><strong>CMO confirmed</strong> (1st) \u2014 medical authority for OptimalRange tables, Intervention Library, contraindication rules</li>' +
+      '<li><strong>Clinical database confirmed</strong> (7th) \u2014 Aurora schema v0: biomarker tables, intervention tables, user profiles, consent records</li>' +
+      '<li><strong>Omea Healthscore</strong> defined: biomarker categories mapped to scoring dimensions (inflammation, metabolic, hormonal, micronutrient, cardiovascular)</li>' +
+      '<li><strong>Stratification logic</strong> drafted \u2014 how users segment by age, sex, lifestage for OptimalRange lookups</li>' +
+      '<li><strong>Advisory board</strong> assembled (15th) \u2014 nutritionist, medical device advisor</li></ul></div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge">Pipeline</span> First data flow</div>' +
+      '<ul><li><strong>Ingestion workers</strong> (Lambda): parse Randox JSON/PDF, Terra webhook payloads, write to Tier 1 verbatim</li>' +
+      '<li><strong>FHIR normaliser</strong> skeleton: LOINC code mapping for core blood panel markers, unit standardisation</li>' +
+      '<li><strong>Source Registry</strong> v0: Randox + Terra registered as sources with parser versions and consent purposes</li>' +
+      '<li><strong>Landing page + waitlist</strong> CRM flow (HubSpot) \u2014 pre-activation funnel</li></ul></div>' +
+      '<h3>What this unblocks</h3>' +
+      '<ul><li>Tier 1 \u2192 Tier 2 pipeline runs for the first time</li><li>OptimalRange table v0 can be populated (~30 markers)</li><li>Intervention Library v0 can be seeded (~80 entries)</li></ul>'
+  },
+  {
+    id: 'june',
+    label: 'Jun',
+    html: '<h3>June \u2014 Engine + app alpha</h3>' +
+      '<div class="panel-sub">The protocol engine runs end-to-end. App on TestFlight. Real integrations live.</div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(177,139,255,0.1);color:var(--violet);border-color:rgba(177,139,255,0.15);">Engine</span> Protocol Engine confirmed</div>' +
+      '<ul><li><strong>7-step pipeline</strong> runs end-to-end for the first time: Optimal range \u2192 Candidate pull \u2192 Score \u2192 Hard constraints \u2192 Budget \u2192 Schedule \u2192 Freeze</li>' +
+      '<li><strong>Training dataset</strong>: synthetic users (generated profiles + blood panels) \xd7 organic data from founders\u2019 own panels</li>' +
+      '<li>Engine output: a frozen Tier 4 protocol snapshot \u2014 immutable, replayable</li></ul></div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(245,180,84,0.1);color:var(--amber);border-color:rgba(245,180,84,0.15);">Integrations</span> Live data sources</div>' +
+      '<ul><li><strong>Randox integration</strong> live \u2014 blood panel PDFs + JSON parsed, LOINC-coded, stored in Tier 1, normalised to Tier 2</li>' +
+      '<li><strong>Terra integration</strong> live \u2014 continuous webhooks for HRV, sleep, steps, resting HR from Oura/Whoop/Apple Health</li>' +
+      '<li><strong>AI extraction</strong> (Claude via Bedrock) \u2014 lab PDF \u2192 structured rows, enriching Tier 2 \u2192 Tier 3</li></ul></div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(78,211,209,0.1);color:var(--teal);border-color:rgba(78,211,209,0.15);">App</span> Mobile + admin</div>' +
+      '<ul><li><strong>App on TestFlight</strong> \u2014 Expo / React Native, protocol display, daily check-in screens</li>' +
+      '<li><strong>Admin CRM</strong> built \u2014 user management, cohort assignment, data quality monitoring</li>' +
+      '<li><strong>UX/UI V.1</strong> delivered \u2014 first complete design system for the mobile app</li>' +
+      '<li><strong>SEIS scheme confirmed</strong> \u2014 investment structure validated</li></ul></div>' +
+      '<h3>What this unblocks</h3>' +
+      '<ul><li>Founders can dogfood real protocols generated from their own blood panels</li><li>The full data loop (ingestion \u2192 processing \u2192 storage \u2192 engine \u2192 app) runs for the first time</li><li>Tier 4 records start accumulating \u2014 even from synthetic users, these test the snapshot freeze logic</li></ul>'
+  },
+  {
+    id: 'july',
+    label: 'Jul',
+    html: '<h3>July \u2014 MVP: funding + compliance + first cohort</h3>' +
+      '<div class="panel-sub">Founding committee enters. GDPR compliant. Funding round opens. Engine at MVP capacity.</div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(62,207,142,0.1);color:var(--green);border-color:rgba(62,207,142,0.15);">Cohort</span> Founding committee</div>' +
+      '<ul><li><strong>Founding committee cohort enters</strong> (1st) \u2014 first real users beyond founders</li>' +
+      '<li>Each member gets: blood panel \u2192 protocol \u2192 daily check-ins \u2192 retest at 8\u201312 weeks</li>' +
+      '<li>Their data creates the first real Tier 4 closed cycles</li></ul></div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(239,107,107,0.1);color:var(--red);border-color:rgba(239,107,107,0.15);">Compliance</span> GDPR + legal</div>' +
+      '<ul><li><strong>GDPR compliance</strong> achieved \u2014 consent management (per-purpose, revocable), crypto-shred on Art 17, CloudTrail audit logs, 72-hour breach notification</li>' +
+      '<li><strong>Legal advice</strong> finalised for the funding round structure</li>' +
+      '<li><strong>UX/UI psychological review</strong> \u2014 ensuring check-in flows don\u2019t create anxiety, framing is health-positive</li></ul></div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge">Funding</span> Seed round</div>' +
+      '<ul><li><strong>Funding round opens</strong> (14th) with SEIS-eligible structure</li>' +
+      '<li>Pitchdeck, use-of-funds breakdown, legal documentation ready</li>' +
+      '<li>Pre-activation events continue (ticketed, waitlist-building)</li></ul></div>' +
+      '<h3>Engine at MVP</h3>' +
+      '<ul><li>~30 markers in OptimalRange, ~80 interventions in Library</li><li>3\u201310 hard constraint rules (contraindications, med interactions)</li><li>Static scoring weights, budget filter, schedule resolver all active</li><li>Versioned content workflow (propose \u2192 approve) operational for CMO</li></ul>'
+  },
+  {
+    id: 'aug_sep',
+    label: 'Aug\u2013Sep',
+    html: '<h3>August \u2014 Polish + close round</h3>' +
+      '<div class="panel-sub">UX/UI V.2, funding closes, CQC process begins, engine scales.</div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(177,139,255,0.1);color:var(--violet);border-color:rgba(177,139,255,0.15);">Product</span> V.2 + scale</div>' +
+      '<ul><li><strong>UX/UI V.2</strong> delivered (5th) \u2014 refined based on founding committee feedback</li>' +
+      '<li><strong>Funding round closes</strong> (10th)</li>' +
+      '<li><strong>CQC process begins</strong> \u2014 regulatory pathway for health-related app claims</li>' +
+      '<li>Engine scaling: ~60 markers, 120\u2013150 interventions, 20\u201340 rules</li>' +
+      '<li>First real closed cycles generating Tier 4 data from founding committee</li></ul></div>' +
+      '<h3 style="margin-top:24px;">September \u2014 Launch</h3>' +
+      '<div class="panel-sub" style="margin-bottom:14px;">The loop goes live. Real users, real data, real learning.</div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(62,207,142,0.1);color:var(--green);border-color:rgba(62,207,142,0.15);">Launch</span> Monday 14th</div>' +
+      '<ul><li><strong>Delta founding committee cohort</strong> \u2014 first public-facing users</li>' +
+      '<li><strong>PR, Friends & Family</strong> pre-launch cohort activated</li>' +
+      '<li>Full data loop operational: ingestion \u2192 processing \u2192 4-tier storage \u2192 rules engine \u2192 mobile app \u2192 daily feedback \u2192 retest \u2192 cycle close</li></ul></div>' +
+      '<div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(78,211,209,0.1);color:var(--teal);border-color:rgba(78,211,209,0.15);">Data</span> The loop closes</div>' +
+      '<ul><li><strong>Attribution (ITS)</strong> begins collecting data from real closed cycles</li>' +
+      '<li>Not yet feeding back into scoring weights \u2014 needs \u22656 months of data</li>' +
+      '<li>Every closed cycle adds to the <strong>Tier 4 moat</strong> \u2014 the dataset that no competitor can replicate without running the same loop</li>' +
+      '<li>Adaptive scoring unlocks at ~March next year, when the engine goes from \u201cevidence-based best guess\u201d to \u201cevidence + empirical results\u201d</li></ul></div>' +
+      '<h3>What\u2019s running at launch</h3>' +
+      '<ul><li>3 ingestion streams (Randox, Terra, app check-ins) + voice notes + Research MCP</li>' +
+      '<li>Full 7-step rules engine with 60+ markers, 150+ interventions, 40+ rules</li>' +
+      '<li>Mobile app (Expo/RN) + Medical Dashboard (CMO)</li>' +
+      '<li>Versioned content with propose/approve workflow</li>' +
+      '<li>CloudTrail audit, GDPR-compliant, consent management, crypto-shred capable</li></ul>'
+  }
+];
+
+function showMilestones() {
+  let html = '';
+  html += '<div class="panel-tag">Roadmap</div>';
+  html += '<h2>Technical milestones</h2>';
+  html += '<div class="panel-sub">April \u2192 September: from infrastructure to a live, learning data loop. Each month builds on the last.</div>';
+
+  html += '<div class="panel-tabs">';
+  MILESTONES_TABS.forEach((tab, i) => {
+    html += '<button class="panel-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + tab.id + '">' + tab.label + '</button>';
+  });
+  html += '</div>';
+
+  MILESTONES_TABS.forEach((tab, i) => {
+    html += '<div class="tab-content' + (i === 0 ? ' active' : '') + '" data-tab="' + tab.id + '">';
+    html += tab.html;
+    html += '</div>';
+  });
+
+  msContent.innerHTML = html;
+
+  // Wire up tabs
+  msContent.querySelectorAll('.panel-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabId = btn.dataset.tab;
+      msContent.querySelectorAll('.panel-tab').forEach(b => b.classList.remove('active'));
+      msContent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      msContent.querySelector('.tab-content[data-tab="' + tabId + '"]').classList.add('active');
+    });
+  });
+
+  msOverlay.classList.add('open');
+  msPanel.classList.add('open');
+}
+
+function closeMilestones() {
+  msOverlay.classList.remove('open');
+  msPanel.classList.remove('open');
+}
+
+msClose.addEventListener('click', closeMilestones);
+msOverlay.addEventListener('click', closeMilestones);
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && msPanel.classList.contains('open')) {
+    closeMilestones();
+    e.stopPropagation();
+  }
+});
 
 // Initial sync after DOM paint
 requestAnimationFrame(() => {
