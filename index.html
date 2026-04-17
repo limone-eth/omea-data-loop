@@ -294,6 +294,151 @@
     color: var(--ink);
   }
 
+  /* ── Panel tabs ── */
+  .panel-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 0 0 20px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0;
+  }
+  .panel-tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-dim);
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: 'Inter', sans-serif;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .panel-tab:hover {
+    color: var(--ink-mid);
+  }
+  .panel-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+
+  /* ── Example cards inside panel ── */
+  .example-card {
+    background: rgba(124, 156, 255, 0.04);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 12px 0;
+  }
+  .example-card .example-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .example-card .example-title .ex-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(124, 156, 255, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(124, 156, 255, 0.15);
+  }
+  .example-card p, .example-card ul {
+    font-size: 13px;
+    color: var(--ink-dim);
+    line-height: 1.65;
+    margin: 6px 0;
+  }
+  .example-card ul { padding-left: 18px; }
+  .example-card li { margin-bottom: 3px; }
+  .example-card .step-trace {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin: 10px 0 4px;
+    font-size: 12px;
+  }
+  .example-card .step-trace .st-node {
+    background: rgba(124, 156, 255, 0.08);
+    border: 1px solid rgba(124, 156, 255, 0.15);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-mid);
+  }
+  .example-card .step-trace .st-node.pass { border-color: rgba(62,207,142,0.3); color: var(--green); }
+  .example-card .step-trace .st-node.fail { border-color: rgba(239,107,107,0.3); color: var(--red); text-decoration: line-through; }
+  .example-card .step-trace .st-arrow { color: var(--ink-dim); font-size: 11px; }
+
+  /* ── Scale timeline ── */
+  .scale-timeline {
+    position: relative;
+    padding-left: 20px;
+    margin: 12px 0;
+  }
+  .scale-timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--line);
+    border-radius: 1px;
+  }
+  .scale-phase {
+    position: relative;
+    padding: 8px 0 12px 16px;
+  }
+  .scale-phase::before {
+    content: '';
+    position: absolute;
+    left: -17px;
+    top: 12px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: var(--bg);
+  }
+  .scale-phase.now::before { border-color: var(--green); background: rgba(62,207,142,0.15); }
+  .scale-phase.mid::before { border-color: var(--accent); background: rgba(124,156,255,0.15); }
+  .scale-phase.later::before { border-color: var(--violet); background: rgba(177,139,255,0.15); }
+  .scale-phase .phase-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .scale-phase.now .phase-label { color: var(--green); }
+  .scale-phase.mid .phase-label { color: var(--accent); }
+  .scale-phase.later .phase-label { color: var(--violet); }
+  .scale-phase p {
+    font-size: 13px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+    margin: 0;
+  }
+
   /* ── Nodes ── */
   .node {
     position: absolute;
@@ -857,6 +1002,23 @@ const ROWS = [
     title: 'Rules Engine',
     subtitle: 'A pure, deterministic function of (input snapshot, content versions). No side effects. Every protocol is replayable.',
     flow: ['Optimal range', '\u2192', 'Candidate pull', '\u2192', 'Score', '\u2192', 'Hard constraints', '\u2192', 'Budget filter', '\u2192', 'Schedule', '\u2192', 'Freeze snapshot'],
+    tabs: [
+      {
+        id: 'how',
+        label: 'How it works',
+        html: '<h3>The 7-step pipeline</h3><p style="color:var(--ink-dim);font-size:13px;line-height:1.65;margin-bottom:14px;">The engine runs every time a new protocol is generated \u2014 after a retest, after the CMO publishes new content, or on-demand. It takes two inputs: the <strong>user\u2019s current data snapshot</strong> (Tiers 2+3) and the <strong>active versions of all medical content</strong> (OptimalRange, Intervention Library, Contraindications, Scoring Weights). It produces one output: a frozen protocol snapshot written to Tier 4.</p><ul><li><strong>Step 1 \u2014 Optimal range lookup</strong>: Each biomarker from the latest blood panel is compared against the OptimalRange table, keyed by marker \xd7 age \xd7 sex. Markers outside the optimal band are flagged with direction (high/low) and deviation percentage.</li><li><strong>Step 2 \u2014 Candidate pull</strong>: For every flagged marker, the engine pulls all candidate interventions from the Intervention Library. A single marker may have 3\u201310 candidates; a user with 8 flagged markers might see 40\u201380 candidates at this stage.</li><li><strong>Step 3 \u2014 Score</strong>: Each candidate is scored: <code>evidence_tier \xd7 severity_weight \xd7 goal_alignment \xd7 onset_speed</code>. At MVP these weights are static (CMO-set). In V2, attribution data feeds learned weights back in.</li><li><strong>Step 4 \u2014 Hard constraints</strong>: Contraindication rules, medication interactions, and supplement\u2013supplement conflicts act as absolute vetoes. No score can override a hard constraint. This is the safety gate.</li><li><strong>Step 5 \u2014 Budget filter</strong>: Surviving candidates are greedily filled by descending score, within the user\u2019s declared time budget (minutes/day) and cost budget (\xa3/month).</li><li><strong>Step 6 \u2014 Schedule</strong>: Each intervention is assigned to a time slot (morning, with meals, evening, before bed). The resolver handles conflicts \u2014 e.g. two supplements that both need an empty stomach.</li><li><strong>Step 7 \u2014 Freeze snapshot</strong>: The complete protocol \u2014 all inputs, all scores, all content version IDs \u2014 is written as an immutable Tier 4 record. This snapshot is what makes every protocol replayable and auditable.</li></ul><h3 style="margin-top:20px;">Key properties</h3><ul><li><strong>Pure function</strong>: Same inputs + same content versions = same protocol. No randomness, no hidden state.</li><li><strong>Replayable</strong>: Any historical protocol can be re-run against a candidate content version to see what would have changed.</li><li><strong>Auditable</strong>: The Tier 4 snapshot records exactly which version of every table was active when the protocol was generated.</li><li><strong>LLM-free</strong>: The engine itself has no AI component. AI is used upstream (Tier 3 enrichment) and downstream (LLM framing), but the decision logic is deterministic rules.</li></ul>'
+      },
+      {
+        id: 'scale',
+        label: 'Start \u2192 Scale',
+        html: '<h3>How the engine grows</h3><p style="color:var(--ink-dim);font-size:13px;line-height:1.65;margin-bottom:16px;">The engine starts small and deliberately. New rules are added only when backed by evidence and approved by the CMO through the versioned content workflow.</p><div class="scale-timeline"><div class="scale-phase now"><div class="phase-label">MVP \xb7 Mid-July</div><p><strong>~30 markers</strong> in OptimalRange (core blood panel: lipids, thyroid, vitamins, minerals, inflammation, metabolic).<br><strong>~80 interventions</strong> in the Library, each CMO-reviewed with evidence tier (A/B/C).<br><strong>3\u201310 hard constraint rules</strong>: known contraindications (e.g. iron + calcium, blood thinners + omega-3), basic medication interactions.<br><strong>Static scoring weights</strong> set by the CMO. Budget filter active. Schedule resolver handles morning/evening slots.<br>Users: synthetic cohort (50\u2013100) + founders + CMO dogfooding.</p></div><div class="scale-phase mid"><div class="phase-label">Delta cohort \xb7 September</div><p><strong>~60 markers</strong> \u2014 lifestage segments added (e.g. perimenopause, over-60).<br><strong>120\u2013150 interventions</strong> \u2014 first evidence-MCP-proposed additions reviewed by CMO.<br><strong>20\u201340 rules</strong> covering age/sex gates, supplement interactions, cycle-phase adjustments.<br>First <strong>closed cycles in Tier 4</strong> from real users. Attribution begins collecting data but not yet feeding back.<br>Users: Delta founding committee (20\u201340 real users).</p></div><div class="scale-phase later"><div class="phase-label">V2 \xb7 Post 6 months</div><p><strong>80+ markers</strong> with personalised ranges emerging from cohort data.<br><strong>200+ interventions</strong> with empirical deltas from attribution.<br><strong>100\u2013200 rules</strong> across the full Intervention Library.<br><strong>Learned scoring weights</strong>: attribution data feeds back into Scoring Weights versions. The engine starts recommending interventions that have actually worked for similar users.<br>Adaptive scoring unlocks \u2014 the engine goes from \u201cevidence-based best guess\u201d to \u201cevidence + empirical results.\u201d</p></div></div>'
+      },
+      {
+        id: 'examples',
+        label: 'Examples',
+        html: '<h3>Practical walkthroughs</h3><div class="example-card"><div class="example-title"><span class="ex-badge">Example 1</span> Low Vitamin D, healthy user</div><p>A 32-year-old male\u2019s blood panel shows <strong>Vitamin D at 38 nmol/L</strong> (optimal: 75\u2013150). No medications, no restrictions, \xa350/month budget.</p><div class="step-trace"><span class="st-node pass">1. Flag</span><span class="st-arrow">\u2192</span><span class="st-node pass">2. Pull 4 candidates</span><span class="st-arrow">\u2192</span><span class="st-node pass">3. Score</span><span class="st-arrow">\u2192</span><span class="st-node pass">4. No vetoes</span><span class="st-arrow">\u2192</span><span class="st-node pass">5. Fits budget</span><span class="st-arrow">\u2192</span><span class="st-node pass">6. Morning slot</span><span class="st-arrow">\u2192</span><span class="st-node pass">7. Freeze</span></div><ul><li><strong>Step 1</strong>: Vitamin D flagged LOW, deviation \u221249%.</li><li><strong>Step 2</strong>: 4 candidates pulled \u2014 D3 4000IU, D3+K2 combo, cod liver oil, sun exposure protocol.</li><li><strong>Step 3</strong>: D3+K2 combo scores highest (evidence A, fast onset, good value).</li><li><strong>Step 4</strong>: No contraindications \u2014 all pass.</li><li><strong>Step 5</strong>: D3+K2 at \xa312/month fits the \xa350 budget easily. Cod liver oil added as secondary (\xa38/month).</li><li><strong>Step 6</strong>: Both assigned to \u201cmorning, with food.\u201d No conflict.</li><li><strong>Step 7</strong>: Protocol frozen. Retest in 8\u201312 weeks will measure delta.</li></ul></div><div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(239,107,107,0.1);color:var(--red);border-color:rgba(239,107,107,0.15);">Example 2</span> Hard constraint blocks a high-scoring candidate</div><p>A 45-year-old female on <strong>warfarin</strong> (blood thinner) has elevated inflammation markers. The engine suggests fish oil \u2014 but a hard constraint intervenes.</p><div class="step-trace"><span class="st-node pass">1. Flag CRP</span><span class="st-arrow">\u2192</span><span class="st-node pass">2. Pull 6 candidates</span><span class="st-arrow">\u2192</span><span class="st-node pass">3. Omega-3 scores #1</span><span class="st-arrow">\u2192</span><span class="st-node fail">4. VETOED</span><span class="st-arrow">\u2192</span><span class="st-node pass">5. Curcumin fits</span><span class="st-arrow">\u2192</span><span class="st-node pass">6. Evening</span><span class="st-arrow">\u2192</span><span class="st-node pass">7. Freeze</span></div><ul><li><strong>Step 3</strong>: Omega-3 fish oil scores highest for inflammation (evidence A, fast onset).</li><li><strong>Step 4</strong>: Hard constraint fires \u2014 <code>warfarin \xd7 omega-3 = bleeding risk</code>. Omega-3 is <strong>vetoed</strong>. This is logged in the Tier 4 snapshot as a constraint hit.</li><li><strong>Step 5</strong>: Next candidate (curcumin extract, evidence B) passes constraints and fits budget.</li><li>The user never sees the vetoed option. The protocol is safe by construction.</li></ul></div><div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(245,180,84,0.1);color:var(--amber);border-color:rgba(245,180,84,0.15);">Example 3</span> Budget-constrained, multi-marker</div><p>A user with a <strong>\xa330/month</strong> budget has 5 flagged markers. After scoring, 8 interventions survive hard constraints, totalling \xa372/month.</p><div class="step-trace"><span class="st-node pass">1. 5 flags</span><span class="st-arrow">\u2192</span><span class="st-node pass">2. 12 candidates</span><span class="st-arrow">\u2192</span><span class="st-node pass">3. Ranked</span><span class="st-arrow">\u2192</span><span class="st-node pass">4. 8 survive</span><span class="st-arrow">\u2192</span><span class="st-node pass">5. Top 4 fit \xa330</span><span class="st-arrow">\u2192</span><span class="st-node pass">6. Scheduled</span><span class="st-arrow">\u2192</span><span class="st-node pass">7. Freeze</span></div><ul><li><strong>Step 5</strong>: Greedy fill by descending score. The top 4 interventions fit within \xa330. The remaining 4 are parked \u2014 they\u2019ll appear in the protocol as \u201cunlockable with higher budget\u201d (framed by the LLM layer, not the engine).</li><li><strong>Step 6</strong>: Two of the four need \u201cempty stomach morning.\u201d The scheduler staggers them: one at wake-up, one 30 min before lunch.</li><li>If the user later raises their budget, a new protocol run picks up the next-highest-scoring candidates automatically.</li></ul></div><div class="example-card"><div class="example-title"><span class="ex-badge" style="background:rgba(78,211,209,0.1);color:var(--teal);border-color:rgba(78,211,209,0.15);">Example 4</span> V2 \u2014 learned weights change a recommendation</div><p>After 6+ months of Tier 4 data, attribution shows that <strong>magnesium glycinate outperforms magnesium citrate</strong> for sleep improvement in users with similar profiles, despite equal evidence tiers.</p><ul><li>The Scoring Weights table is updated (CMO-approved) to give glycinate a +15% weight bonus for the sleep-quality goal.</li><li>Next time the engine runs for a user with flagged magnesium + sleep goal, <strong>glycinate scores higher than citrate</strong> \u2014 even though both are evidence tier A.</li><li>This is the loop learning: real outcomes \u2192 attribution \u2192 scoring weights \u2192 better protocols.</li></ul></div>'
+      }
+    ],
     details: [
       '<strong>Step 1 \u2014 Optimal range</strong>: Looks up each biomarker against the OptimalRange table by marker \xd7 age \xd7 sex. Flags markers outside optimal. ~30 markers at MVP, scaling to 80+.',
       '<strong>Step 2 \u2014 Candidate pull</strong>: For each flagged marker, pulls candidate interventions from the Intervention Library. ~80 entries at MVP, scaling to 200+.',
@@ -931,8 +1093,7 @@ function showRowInfo(row) {
   html += '<div class="panel-sub">' + row.subtitle + '</div>';
 
   // Flow visualization
-  html += '<h3>Flow</h3>';
-  html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;">';
+  html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:16px;">';
   row.flow.forEach(step => {
     if (step === '\u2192') {
       html += '<span class="flow-arrow">\u2192</span>';
@@ -942,15 +1103,43 @@ function showRowInfo(row) {
   });
   html += '</div>';
 
-  // Details
-  html += '<h3>How it works</h3>';
-  html += '<ul>';
-  row.details.forEach(d => {
-    html += '<li>' + d + '</li>';
-  });
-  html += '</ul>';
+  if (row.tabs) {
+    // Render tabbed interface
+    html += '<div class="panel-tabs">';
+    row.tabs.forEach((tab, i) => {
+      html += '<button class="panel-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + tab.id + '">' + tab.label + '</button>';
+    });
+    html += '</div>';
+    row.tabs.forEach((tab, i) => {
+      html += '<div class="tab-content' + (i === 0 ? ' active' : '') + '" data-tab="' + tab.id + '">';
+      html += tab.html;
+      html += '</div>';
+    });
+  } else {
+    // Simple details list
+    html += '<h3>How it works</h3>';
+    html += '<ul>';
+    row.details.forEach(d => {
+      html += '<li>' + d + '</li>';
+    });
+    html += '</ul>';
+  }
 
   rowInfoContent.innerHTML = html;
+
+  // Wire up tab clicks
+  if (row.tabs) {
+    rowInfoContent.querySelectorAll('.panel-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        rowInfoContent.querySelectorAll('.panel-tab').forEach(b => b.classList.remove('active'));
+        rowInfoContent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        rowInfoContent.querySelector('.tab-content[data-tab="' + tabId + '"]').classList.add('active');
+      });
+    });
+  }
+
   rowInfoOverlay.classList.add('open');
   rowInfoPanel.classList.add('open');
 }
